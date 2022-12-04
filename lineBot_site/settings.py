@@ -25,7 +25,10 @@ SECRET_KEY = 'django-insecure-kgjq!&*j4h0ynz)vrutckgu8-+cd2t5+@#w&*5sq$q1ildn2+$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['freewhale.pythonanywhere.com']
+ALLOWED_HOSTS = [
+    'freewhale.pythonanywhere.com',
+    'aa59-220-135-84-203.jp.ngrok.io',
+]
 
 
 # Application definition
@@ -106,13 +109,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Taipei'
 
 USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
@@ -124,3 +127,6 @@ STATIC_URL = '/static/'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LINE_CHANNEL_ACCESS_TOKEN = 'XXXXXXXXXXXXXXXXXXXXXXXXXXX'
+LINE_CHANNEL_SECRET = 'XXXXXXXXXXXXXXXXXX'
