@@ -9,13 +9,12 @@ from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import MessageEvent, TextSendMessage,  ImageSendMessage
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError
-import tempfile, os, time
+import tempfile, os
 
 line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(settings.LINE_CHANNEL_SECRET)
 static_tmp_path = os.path.join(os.path.dirname(__file__), 'static', 'tmp')
 client = ImgurClient(settings.IMGUR_CLIENT_ID, settings.IMGUR_CLIENT_SECRET, settings.IMGUR_ACCESS_TOKEN, settings.IMGUR_REFRESH_TOKEN)
-
 def hello_world(request):
     return HttpResponse("Hello World!")
 
@@ -39,7 +38,7 @@ def callback(request):
                 if event.message.type=='text':
                     text_logic(event)
                 elif event.message.type=='image':
-                    upload_to_imgur(event)                    
+                    upload_to_imgur(0, event)                    
                 elif event.message.type=='location':
                     line_bot_api.reply_message(  # 回復傳入的訊息文字
                         event.reply_token,
@@ -135,30 +134,30 @@ def get_channel(groupId):
     return channel
 
 def update_channel(groupId, imgurAlbum, alias):
-    print('update_channel')
     channel = ChannelInfo.objects.get_or_create(
         groupId= groupId,
     )[0]
     if imgurAlbum:
+        print('update_channel imgurAlbum:', imgurAlbum)
         channel.imgurAlbum = imgurAlbum
     if alias:
-        print('update_channel alias')
+        print('update_channel alias:', alias)
         channel.alias = alias
-        try:
-            album = client.update_album(
-                channel.imgurAlbum,
-                {'ids': None, 'title': alias, }
-            )        
-        except ImgurClientError as e:
-            print(e.error_message)
-            print(e.status_code)
-        print(album)
     channel.save()
 
 def del_channel(groupId):
     ChannelInfo.objects.filter(groupId=groupId).delete()
 
-def upload_to_imgur(event):
+def create_album(alias, ids):    
+    try:
+        album = client.create_album({'ids': ids, 'title': alias })
+        return album['id']
+    except ImgurClientError as e:
+        print(e.error_message)
+        print(e.status_code)
+        return ''
+
+def upload_to_imgur(retry, event):
     groupId, userId, text, photoId = get_event_info(event)
     message_content = line_bot_api.get_message_content(photoId)
     channel = get_channel(groupId)
@@ -177,15 +176,19 @@ def upload_to_imgur(event):
             'title': None,
             'description': None
         }
+        print(config)
         path = os.path.join('lineBot', 'static', 'tmp', dist_name)
         image = client.upload_from_path(path, config=config, anon=False)
-        os.remove(path)
-        print('-----1 upload')
-        if channel.imgurAlbum == '':
-            print('channel.imgurAlbum:', channel.imgurAlbum)
-            update_channel(groupId, image.id, image.id)
-        print('-----2 image')
         print(image)
+        os.remove(path)
+        if channel.imgurAlbum == '':
+            print('alias:', channel.alias)
+            alias = channel.alias if channel.alias > '' else groupId
+            print('alias:', alias)
+            imgurAlbum = create_album(alias, image['id'])
+            print('imgurAlbum:', imgurAlbum)
+            update_channel(groupId, imgurAlbum, alias)
+        print('-----2 image')
         # PhotoAlbum.objects.create(
         #     groupId = groupId,
         #     userId = userId,
@@ -197,12 +200,19 @@ def upload_to_imgur(event):
             event.reply_token,
                 TextSendMessage(text='上傳成功'))
     except ImgurClientError as e:
+        retry += 1
+        print('retry: ', retry)
         print(e.error_message)
         print(e.status_code)
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text='上傳失敗'))
-    except:
+        os.remove(path)
+        if retry < 3:
+            upload_to_imgur(retry, event)
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text='上傳失敗'))
+    except Exception as err:
+        print(f"Unexpected {err=}, {type(err)=}")
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text='上傳失敗'))
